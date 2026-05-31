@@ -1,0 +1,42 @@
+[MASTER]
+ignore-patterns=test_.*\.py
+
+
+[MESSAGES CONTROL]
+disable=
+    no-member,
+    duplicate-code,
+    too-many-lines,
+    broad-exception-caught,
+    logging-fstring-interpolation,
+    unused-argument,
+    missing-function-docstring,
+    no-else-return,
+    protected-access,
+    import-outside-toplevel,
+    invalid-name,
+    redefined-outer-name
+
+[TYPECHECK]
+generated-members=
+    model_fields,
+    model_config,
+    __pydantic_fields__,
+    __fields__,
+    __fields_set__,
+    dict,
+    json,
+    copy,
+    model_dump,
+    model_validate
+
+[FORMAT]
+max-line-length=88
+
+[DESIGN]
+max-attributes=20
+max-args=6
+max-positional-arguments=6
+max-locals=24
+
+; Made with Bob

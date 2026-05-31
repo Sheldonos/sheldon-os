@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sheldon-os
+spec:
+  replicas: 5
+  template:
+    spec:
+      containers:
+      - name: sheldon-os
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "4000m"
+
+# Made with Bob

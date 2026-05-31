@@ -1,0 +1,145 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for testing
+  postgres:
+    image: postgres:15-alpine
+    container_name: sheldon-test-postgres
+    environment:
+      POSTGRES_DB: sheldon_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d sheldon_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sheldon-test-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: sheldon-test-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - sheldon-test-network
+
+  # Sheldon OS Test Container
+  sheldon-os-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.test
+    container_name: sheldon-test-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_URL: postgresql://test_user:test_password@postgres:5432/sheldon_test
+      DATABASE_POOL_SIZE: 20
+      DATABASE_MAX_OVERFLOW: 10
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      REDIS_MAX_CONNECTIONS: 50
+      
+      # Application
+      ENVIRONMENT: test
+      LOG_LEVEL: DEBUG
+      SECRET_KEY: test-secret-key-do-not-use-in-production
+      
+      # Testing
+      PYTEST_TIMEOUT: 300
+      PYTEST_WORKERS: 4
+      
+      # Feature Flags
+      ENABLE_METRICS: true
+      ENABLE_TRACING: true
+      ENABLE_DEBUG: true
+    volumes:
+      - ../src:/app/src
+      - ../tests:/app/tests
+      - ../pytest.ini:/app/pytest.ini
+      - test_coverage:/app/htmlcov
+    networks:
+      - sheldon-test-network
+    command: >
+      sh -c "
+        echo 'Waiting for services...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        python -m alembic upgrade head &&
+        echo 'Running tests...' &&
+        pytest tests/ -v --cov=src --cov-report=html --cov-report=term
+      "
+
+  # Optional: Monitoring for test environment
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sheldon-test-prometheus
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus-test.yml:/etc/prometheus/prometheus.yml
+      - prometheus_test_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - sheldon-test-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sheldon-test-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: test_admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_test_data:/var/lib/grafana
+    networks:
+      - sheldon-test-network
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+  test_coverage:
+    driver: local
+  prometheus_test_data:
+    driver: local
+  grafana_test_data:
+    driver: local
+
+networks:
+  sheldon-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# Made with Bob

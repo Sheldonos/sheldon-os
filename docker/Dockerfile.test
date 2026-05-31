@@ -1,0 +1,59 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    libpq-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install testing dependencies
+RUN pip install --no-cache-dir \
+    pytest==7.4.3 \
+    pytest-cov==4.1.0 \
+    pytest-asyncio==0.21.1 \
+    pytest-benchmark==4.0.0 \
+    pytest-mock==3.12.0 \
+    pytest-timeout==2.2.0 \
+    pytest-xdist==3.5.0 \
+    locust==2.20.0 \
+    bandit==1.7.5 \
+    safety==2.3.5 \
+    coverage==7.3.2
+
+# Copy source code
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY pytest.ini .
+COPY setup.py .
+
+# Install package in development mode
+RUN pip install -e .
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Create directories for test artifacts
+RUN mkdir -p /app/htmlcov /app/test-results /app/logs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Default command (can be overridden)
+CMD ["pytest", "tests/", "-v", "--cov=src", "--cov-report=html", "--cov-report=term"]
+
+# Made with Bob
